@@ -1,0 +1,123 @@
+-- ============================================================================
+--  config/pack.lua — plugin registration via Neovim 0.12's native vim.pack
+--
+--  Responsibilities:
+--    (1) Declare every plugin source we want.
+--    (2) After plugins are available on the runtimepath, call each module's
+--        setup function in a safe order (theme first; everything else after).
+--
+--  Why this shape?
+--    * vim.pack.add() downloads (on first launch) and activates everything
+--      synchronously — there's no deferred/lazy loading like lazy.nvim.
+--    * Putting the source list here, and the per-plugin config under
+--      lua/plugins/*.lua, keeps each concern in one small file.
+-- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 1. Download + activate plugins
+-- ---------------------------------------------------------------------------
+-- Notes on version pinning:
+--   * Treesitter is pinned to `main` explicitly — the default branch changed
+--     from `master` to `main` and the API is different; we target the new one.
+--   * blink.cmp pins to the 1.x line so we get bug fixes but no v2 breakage.
+--   * telescope pins to the 0.1.x line (latest stable release stream).
+vim.pack.add({
+  -- ------ Theme -------------------------------------------------------------
+  "https://github.com/catppuccin/nvim",
+
+  -- ------ Core libraries ---------------------------------------------------
+  "https://github.com/nvim-lua/plenary.nvim",
+  "https://github.com/nvim-tree/nvim-web-devicons",
+
+  -- ------ Treesitter -------------------------------------------------------
+  -- Requires the `tree-sitter` CLI on PATH (macOS: `brew install tree-sitter`).
+  { src = "https://github.com/nvim-treesitter/nvim-treesitter", version = "main" },
+  "https://github.com/windwp/nvim-ts-autotag",
+  "https://github.com/nvim-treesitter/nvim-treesitter-context",
+  { src = "https://github.com/nvim-treesitter/nvim-treesitter-textobjects", version = "main" },
+
+  -- ------ Telescope (fuzzy finder) -----------------------------------------
+  { src = "https://github.com/nvim-telescope/telescope.nvim", version = "0.1.x" },
+  -- fzf-native needs `make` on install; vim.pack auto-runs a Makefile if
+  -- it exists, so no explicit build step is required here.
+  "https://github.com/nvim-telescope/telescope-fzf-native.nvim",
+
+  -- ------ Search & replace UI ----------------------------------------------
+  "https://github.com/MagicDuck/grug-far.nvim",
+
+  -- ------ LSP tooling ------------------------------------------------------
+  "https://github.com/mason-org/mason.nvim",
+  "https://github.com/neovim/nvim-lspconfig",
+  "https://github.com/b0o/schemastore.nvim",          -- JSON/YAML schemas
+
+  -- ------ Completion & snippets --------------------------------------------
+  -- blink.cmp replaces the nvim-cmp/cmp-nvim-lsp/cmp-buffer/cmp-path stack
+  -- with a single plugin. Much cleaner, and the de-facto 2026 choice.
+  -- Snippet expansion uses Neovim's built-in vim.snippet (blink's default
+  -- preset) — no LuaSnip needed since no user snippet library is loaded.
+  { src = "https://github.com/saghen/blink.cmp", version = vim.version.range("1") },
+
+  -- ------ File navigation --------------------------------------------------
+  "https://github.com/mbbill/undotree",
+  "https://github.com/nvim-tree/nvim-tree.lua",
+
+  -- ------ Git --------------------------------------------------------------
+  "https://github.com/lewis6991/gitsigns.nvim",
+
+  -- ------ Editor niceties -------------------------------------------------
+  -- NOTE: Comment.nvim was dropped — Neovim 0.10+ ships `gcc`/`gc<motion>`
+  -- commenting natively (uses 'commentstring', treesitter-aware).
+  "https://github.com/folke/which-key.nvim",
+  "https://github.com/windwp/nvim-autopairs",
+  "https://github.com/kylechui/nvim-surround",
+  "https://github.com/lukas-reineke/indent-blankline.nvim",
+
+  -- ------ UI --------------------------------------------------------------
+  "https://github.com/nvim-lualine/lualine.nvim",
+  "https://github.com/akinsho/bufferline.nvim",
+  "https://github.com/Bekaboo/dropbar.nvim",       -- breadcrumbs winbar (LunarVim's navic, modernized)
+  "https://github.com/folke/todo-comments.nvim",
+  "https://github.com/folke/trouble.nvim",
+  "https://github.com/brenoprata10/nvim-highlight-colors",
+
+  -- ------ AI assistance ----------------------------------------------------
+  "https://github.com/github/copilot.vim",
+
+  -- ------ Formatter (replaces null-ls for format-on-save) ------------------
+  "https://github.com/stevearc/conform.nvim",
+
+  -- ------ Terminal / tmux interop -----------------------------------------
+  "https://github.com/christoomey/vim-tmux-navigator",
+  "https://github.com/akinsho/toggleterm.nvim",
+})
+
+-- ---------------------------------------------------------------------------
+-- 2. Configure each plugin
+-- ---------------------------------------------------------------------------
+-- Ordering matters for two reasons:
+--   * The colorscheme must load before anything that reads its highlights.
+--   * LSP must setup AFTER blink so we can feed blink's capabilities
+--     into lspconfig.
+local function safe_require(mod)
+  local ok, err = pcall(require, "plugins." .. mod)
+  if not ok then
+    vim.notify(("Failed loading plugins.%s: %s"):format(mod, err), vim.log.levels.ERROR)
+  end
+end
+
+safe_require("colorscheme")   -- FIRST
+safe_require("treesitter")
+safe_require("telescope")
+safe_require("completion")    -- blink.cmp — before LSP
+safe_require("lsp")           -- uses blink.cmp capabilities
+safe_require("copilot")
+safe_require("tree")
+safe_require("git")
+safe_require("editor")
+safe_require("ui")
+safe_require("bufferline")
+safe_require("dropbar")
+safe_require("highlight_colors")
+safe_require("grug_far")
+safe_require("misc")
+safe_require("toggleterm")
